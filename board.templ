@@ -1,0 +1,169 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+// Helper function to build the class string for a square.
+func getSquareClasses(g *GameState, r, c int) string {
+	classes := []string{"square"}
+	if (r+c)%2 == 0 {
+		classes = append(classes, "light")
+	} else {
+		classes = append(classes, "dark")
+	}
+	if g.SelectedSquare != nil && g.SelectedSquare.Row == r && g.SelectedSquare.Col == c {
+		classes = append(classes, "selected")
+	}
+	return strings.Join(classes, " ")
+}
+
+// Helper function to build the class string for a piece.
+func getPieceClasses(p Piece) string {
+	if p == Empty {
+		return ""
+	}
+	if isWhitePiece(p) {
+		return "piece-white"
+	}
+	return "piece-black"
+}
+
+// A dedicated component for a single square. This is the robust way to build this.
+templ square(g *GameState, r, c int, p Piece) {
+	<div
+		class={ getSquareClasses(g, r, c) }
+		hx-post="/move"
+		hx-vals={ fmt.Sprintf(`{"row": %d, "col": %d}`, r, c) }
+		hx-target="#chessboard-container"
+		hx-swap="innerHTML"
+	>
+		<span class={ getPieceClasses(p) }>
+			{ string(p) }
+		</span>
+	</div>
+}
+
+// A component for the full layout including labels.
+templ chessboardWithLabels(g *GameState) {
+	<div id="turn-indicator">
+		Turn: <span id="turn-indicator-value">{ string(g.CurrentPlayer) }</span>
+	</div>
+	<div class="chessboard-layout">
+		<!-- Empty corner top-left -->
+		<div></div>
+		<!-- File labels (a-h) at the top -->
+		<div class="file-labels">
+			for _, label := range []string{"a", "b", "c", "d", "e", "f", "g", "h"} {
+				<div class="label">{ label }</div>
+			}
+		</div>
+		<!-- Empty corner top-right -->
+		<div></div>
+		<!-- Rank labels (8-1) on the left -->
+		<div class="rank-labels">
+			for i := 8; i >= 1; i-- {
+				<div class="label">{ fmt.Sprintf("%d", i) }</div>
+			}
+		</div>
+		<!-- The actual 8x8 board -->
+		@board(g)
+		<!-- Rank labels (8-1) on the right -->
+		<div class="rank-labels">
+			for i := 8; i >= 1; i-- {
+				<div class="label">{ fmt.Sprintf("%d", i) }</div>
+			}
+		</div>
+		<!-- Empty corner bottom-left -->
+		<div></div>
+		<!-- File labels (a-h) at the bottom -->
+		<div class="file-labels">
+			for _, label := range []string{"a", "b", "c", "d", "e", "f", "g", "h"} {
+				<div class="label">{ label }</div>
+			}
+		</div>
+		<!-- Empty corner bottom-right -->
+		<div></div>
+	</div>
+}
+
+templ page(g *GameState) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Go+Templ+HTMX Chess</title>
+			<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+   			<style>
+                body { font-family: sans-serif; background-color: #333; color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+                .top-bar {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 16px; /* space between indicator and button */
+                    margin-bottom: 12px;
+                }
+                .chessboard-layout {
+                    display: grid;
+                    grid-template-columns: 24px 1fr 24px;
+                    grid-template-rows: 24px 1fr 24px;
+                    width: 90vmin;
+                    height: 90vmin;
+                    max-width: 800px;
+                    max-height: 800px;
+                }
+                .file-labels { display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; height: 100%; }
+                .rank-labels { display: grid; grid-template-rows: repeat(8, 1fr); width: 100%; height: 100%; }
+                .label { font-family: sans-serif; font-weight: bold; color: #e2e2e2; display: flex; justify-content: center; align-items: center; }
+                .board {
+                    grid-column: 2;
+                    grid-row: 2;
+                    display: grid;
+                    grid-template-columns: repeat(8, 1fr);
+                    width: 100%;
+                    height: 100%;
+                    border: 2px solid #555;
+                    aspect-ratio: 1 / 1;
+                }
+                .square { display: flex; justify-content: center; align-items: center; font-size: 8vmin; cursor: pointer; }
+                .square.light { background-color: #f0d9b5; }
+                .square.dark { background-color: #b58863; }
+                .square.selected { background-color: #6a994e !important; }
+                .piece-white { color: #fff; text-shadow: 0 0 4px #000; }
+                .piece-black { color: #000; }
+                h1 { margin-bottom: 20px; }
+                #turn-indicator { font-size: 1.5em; }
+                .reset-button { padding: 1px 2px; font-size: 1em; cursor: pointer; background-color: #4a4a4a; border: 1px solid #666; color: white; border-radius: 5px; }
+                .reset-button:hover { background-color: #5a5a5a; }
+            </style>
+		</head>
+		<body>
+            <h1>Chess</h1>
+			<button class="reset-button" hx-post="/reset" hx-target="#chessboard-container" hx-swap="innerHTML">Reset Game</button>
+            <div id="chessboard-container">
+                @chessboardWithLabels(g)
+            </div>
+		</body>
+	</html>
+}
+
+templ board(g *GameState) {
+	<div id="board" class="board">
+		for r, row := range g.Board {
+			for c, piece := range row {
+				@square(g, r, c, piece)
+			}
+		}
+	</div>
+}
+
+func isWhitePiece(p Piece) bool {
+    switch p {
+    case WhitePawn, WhiteRook, WhiteKnight, WhiteBishop, WhiteQueen, WhiteKing:
+        return true
+    default:
+        return false
+    }
+}
